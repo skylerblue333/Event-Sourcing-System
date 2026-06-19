@@ -1,12 +1,18 @@
 # Event-Sourcing-System
 
-## Overview
-A lightweight implementation of the CQRS (Command Query Responsibility Segregation) and Event Sourcing patterns in Node.js.
+![CI](https://github.com/skylerblue333/Event-Sourcing-System/workflows/CI/badge.svg)
 
-## Quick Start (1-Click Build)
+Production-ready TypeScript Express API for system operations.
 
+## Features
+- Fully typed Express handlers
+- Supertest integration testing
+- Docker containerization
+- GitHub Actions CI Pipeline
+
+## Quick Start
 ```bash
-git clone https://github.com/skylerblue333/Event-Sourcing-System.git
-cd Event-Sourcing-System
-npm start
+npm ci
+npm test
+npm run build && npm start
 ```
