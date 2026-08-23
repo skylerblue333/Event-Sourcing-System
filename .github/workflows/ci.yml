@@ -17,17 +17,25 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: npm
+          node-version: '22'
 
       - name: Install dependencies
         run: npm install
 
+      - name: Type check
+        run: npm run check
+
       - name: Build TypeScript
         run: npm run build
 
-      - name: Test
-        run: npm test -- --runInBand
+      - name: Tests
+        run: npm run test:ci
 
       - name: Dependency audit
         run: npm audit --audit-level=high
+
+      - name: Build container
+        run: docker build -t sky-event-ledger:ci .
+
+      - name: Validate Compose
+        run: docker compose config
