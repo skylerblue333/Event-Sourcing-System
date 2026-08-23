@@ -1,44 +1,99 @@
-<!-- PORTFOLIO PROJECT PROFILE: maintained by the repository owner -->
+# Sky Event Ledger
 
-## Project profile and code-audit snapshot
+Sky Event Ledger is a focused TypeScript event-sourcing service for append-only domain history, optimistic concurrency, deterministic replay, idempotent writes, and tamper-evident stream verification.
 
-**What this is:** **Event-Sourcing-System** is a public repository described as: “CQRS and event sourcing implementation using Node.js. #SkyCoin4444 #AI #Blockchain #DevOps #Innovation” Its dominant language signals are **TypeScript (2 files), Python (2 files), JavaScript (1 files)**.
+> **Status:** productization branch under exact-head CI verification. This is a single-node event ledger, not a distributed event database.
 
-**Why it has value:** Its value is best understood through the implementation evidence currently present in the repository: **21 tracked files** were observed in the shallow audit, with the source structure and existing documentation providing the project’s specific context. This README does not treat a prototype, experiment, or archive as a production system without supporting evidence.
+## Core behavior
 
-**Implementation evidence:** 2 test-related file(s) detected; 2 dependency or package manifest(s) detected; 2 build/CI/infrastructure signal(s) detected; and 3 documentation or governance file(s) detected. Test filenames observed include `tests/api.test.ts`, `tests/test_main.py`. Dependency or package files include `package.json`, `requirements.txt`. Build, CI, or infrastructure signals include `Dockerfile`, `.github/workflows/ci.yml`.
+Each event contains:
 
-**Current status:** The repository is tracked on the `main` branch. The existing source tree, configuration, tests, workflows, and documentation remain authoritative for supported behavior and maturity. A code audit is not a production-readiness certification, and the presence of a test or workflow file does not establish that all checks pass.
+- immutable event ID;
+- aggregate/stream ID;
+- monotonic sequence number;
+- event type and JSON data;
+- timestamp;
+- optional idempotency key;
+- previous-event hash;
+- SHA-256 event hash.
 
-**Relationship to the wider portfolio:** This repository is one focused component of the broader Skyler Blue Spillers portfolio across AI, software engineering, cloud and DevOps, cybersecurity, blockchain, finance, education, social systems, and creative work. It may provide a service boundary, implementation pattern, experiment, archive, or reusable idea for related repositories. Treat repositories as technical dependencies only where documented interfaces and verified project requirements support that relationship.
+On startup, persisted records are replayed and validated. Malformed JSON, broken sequence numbers, duplicate idempotency keys, previous-hash mismatches, or event-hash mismatches fail closed.
 
-**Quality and security note:** No obvious secret-like pattern was detected by the limited static scan; this is not a substitute for a security audit. No TODO/FIXME marker was detected in the scanned text files.
+## Quick start
 
----
+```bash
+npm install
+npm run check
+npm test
+npm run build
+EVENT_STORE_FILE=./data/events.jsonl npm start
+```
 
-# Event Sourcing System
+Or run the hardened standalone package:
 
-![GitHub stars](https://img.shields.io/github/stars/skylerblue333/Event-Sourcing-System?style=flat-square)
-![GitHub license](https://img.shields.io/github/license/skylerblue333/Event-Sourcing-System?style=flat-square)
+```bash
+docker compose up --build
+```
 
-## 🌟 Overview
-**Event-Sourcing-System** is a professional-grade project within the **SkyCoin4444** ecosystem. It focuses on delivering high-value solutions in the domain of **TypeScript, JavaScript, Python**.
+The Compose configuration persists `/data/events.jsonl` in a named volume and binds the API to localhost by default.
 
-## 🚀 Key Features
-- **Scalable Architecture**: Designed for enterprise-level growth and performance.
-- **Modern Standards**: Implements best practices for clean code and maintainability.
-- **Robust Integration**: Built to work seamlessly within modern cloud-native environments.
+## API
 
-## 🛠️ Technology Stack
-- **Primary Domain**: TypeScript, JavaScript, Python
-- **Ecosystem**: SkyCoin4444 Digital Platform
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/healthz` | liveness |
+| GET | `/readyz` | readiness and persistence mode |
+| GET | `/metrics` | stream/event counts and uptime |
+| POST | `/api/v1/events` | append an event |
+| GET | `/api/v1/events/:aggregateId` | replay/read a stream |
+| GET | `/api/v1/events/:aggregateId/verify` | verify stream hash chain |
+| GET | `/api/v1/accounts/:id` | example aggregate projection |
 
-## 📂 Structure
-The project is organized into a modular structure to ensure clarity and ease of development.
+Append example:
 
-## 👨‍💻 Author
-**Skyler Blue Spillers**
-*Professional Chess Player & Software Engineer*
+```bash
+curl -X POST http://127.0.0.1:3000/api/v1/events \
+  -H 'Content-Type: application/json' \
+  -H 'Idempotency-Key: order-123-create-v1' \
+  -d '{
+    "aggregateId":"order-123",
+    "type":"ORDER_CREATED",
+    "expectedVersion":0,
+    "data":{"customerId":"customer-9"}
+  }'
+```
 
----
-*Powered by SkyCoin4444*
+Reusing the same idempotency key with the same event content returns the original event without incrementing the stream. Reusing it for different content returns a conflict.
+
+## Architecture
+
+```text
+client
+  |
+  v
+Express API
+  |
+  +--> validation / idempotency / expectedVersion
+  |
+  v
+EventStore
+  |
+  +--> per-aggregate ordered stream
+  +--> SHA-256 previousHash -> hash chain
+  +--> replay / verify
+  |
+  v
+optional append-only JSONL persistence
+```
+
+## Verification gates
+
+GitHub Actions is configured to run Node 22, TypeScript checking, production compilation, Jest tests, high-severity dependency audit, Docker image build, and Compose validation.
+
+## Product boundary
+
+Sky Event Ledger does **not** claim distributed consensus, HA replication, global ordering, cross-process writer safety, exactly-once distributed delivery, signed events, encryption at rest, built-in authentication, or an SLA. See `PRODUCT.md` and `SECURITY.md` for the exact commercial and security boundaries.
+
+## License
+
+MIT.
