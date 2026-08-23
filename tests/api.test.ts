@@ -18,6 +18,7 @@ describe('Event-Sourcing-System API', () => {
     expect(res.body.success).toBe(true);
     expect(res.body.processed).toBe('test_data');
     expect(res.body.eventId).toEqual(expect.any(String));
+    expect(res.body.hash).toEqual(expect.any(String));
   });
 
   it('rejects a missing process payload', async () => {
@@ -35,11 +36,33 @@ describe('Event-Sourcing-System API', () => {
 
     expect(res.status).toBe(201);
     expect(res.body.sequence).toBe(1);
+    expect(res.body.previousHash).toBe('GENESIS');
 
     const stream = await request(app).get('/api/v1/events/acc-test');
     expect(stream.status).toBe(200);
     expect(stream.body.version).toBe(1);
     expect(stream.body.events[0].type).toBe('ACCOUNT_CREATED');
+
+    const verify = await request(app).get('/api/v1/events/acc-test/verify');
+    expect(verify.status).toBe(200);
+    expect(verify.body.valid).toBe(true);
+  });
+
+  it('is idempotent when the same key is retried', async () => {
+    const first = await request(app)
+      .post('/api/v1/events')
+      .set('Idempotency-Key', 'event-retry-001')
+      .send({ aggregateId: 'idempotent-test', type: 'ORDER_CREATED', data: { amount: 10 }, expectedVersion: 0 });
+
+    const retry = await request(app)
+      .post('/api/v1/events')
+      .set('Idempotency-Key', 'event-retry-001')
+      .send({ aggregateId: 'idempotent-test', type: 'ORDER_CREATED', data: { amount: 10 }, expectedVersion: 0 });
+
+    expect(first.status).toBe(201);
+    expect(retry.status).toBe(201);
+    expect(retry.body.id).toBe(first.body.id);
+    expect(retry.body.sequence).toBe(1);
   });
 
   it('returns 409 for optimistic concurrency conflicts', async () => {
